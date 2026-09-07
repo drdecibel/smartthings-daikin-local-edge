@@ -21,7 +21,9 @@ local function host_for(device)
   local override = model.clean_host(raw)
   if override then return override end
   if type(raw) == "string" and raw:match("%S") then
-    log.warn("The configured Daikin address is not a valid host name or IP address")
+    -- info_changed already warns when the value is entered; polling every few
+    -- minutes must not keep repeating it.
+    log.debug("Ignoring an unusable configured Daikin address")
   end
   return device:get_field(C.FIELD_HOST)
 end
