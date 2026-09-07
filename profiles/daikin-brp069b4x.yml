@@ -1,0 +1,56 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 drdecibel
+name: daikin.local.brp069b4x.v1
+components:
+  - id: main
+    label: Heat pump
+    capabilities:
+      - id: switch
+        version: 1
+      - id: temperatureMeasurement
+        version: 1
+      - id: thermostatMode
+        version: 1
+      - id: thermostatOperatingState
+        version: 1
+      - id: thermostatHeatingSetpoint
+        version: 1
+      - id: thermostatCoolingSetpoint
+        version: 1
+      - id: airConditionerFanMode
+        version: 1
+      - id: fanOscillationMode
+        version: 1
+      - id: refresh
+        version: 1
+    categories:
+      - name: AirConditioner
+  - id: outdoor
+    label: Outdoor temperature
+    capabilities:
+      - id: temperatureMeasurement
+        version: 1
+    categories:
+      - name: TempSensor
+preferences:
+  - name: hostOverride
+    title: "Fixed IP or hostname (optional)"
+    description: "Leave empty to use the address found automatically. A DHCP reservation is recommended."
+    required: false
+    preferenceType: string
+    definition:
+      stringType: text
+      maxLength: 64
+      default: ""
+  - name: pollInterval
+    title: "Refresh interval"
+    description: "How often the driver reads the heat pump while idle."
+    required: true
+    preferenceType: enumeration
+    definition:
+      options:
+        "60": "1 minute"
+        "300": "5 minutes"
+        "600": "10 minutes"
+        "900": "15 minutes"
+      default: "300"

@@ -1,0 +1,56 @@
+name: Bug report
+description: Report a reproducible driver problem
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve the driver. Do not paste an unedited `/common/basic_info` response. Remove MAC addresses, UUIDs, SSIDs, IP addresses and credentials.
+  - type: input
+    id: adapter
+    attributes:
+      label: Adapter model
+      description: For example BRP069B41 or BRP069B45.
+      placeholder: BRP069B4x
+    validations:
+      required: true
+  - type: input
+    id: firmware
+    attributes:
+      label: Adapter firmware
+      description: The `ver` value is sufficient. Do not include the full basic-info response.
+      placeholder: 4_2_303
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Select Heat
+        2. Set 22 °C
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Sanitized SmartThings Edge logs
+      description: Remove account IDs, device IDs, MAC addresses, SSIDs and local addresses before posting.
+      render: shell
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy confirmation
+      options:
+        - label: I have removed private network and device identifiers from the report.
+          required: true

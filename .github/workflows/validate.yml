@@ -1,0 +1,38 @@
+name: Validate driver
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Lua and YAML validator
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes lua5.4 python3-yaml
+
+      - name: Check Lua syntax
+        run: find src test -name '*.lua' -print0 | xargs -0 -n1 luac -p
+
+      - name: Run core tests
+        run: lua test/test_core.lua
+
+      - name: Check YAML files
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import yaml
+
+          for path in [Path("config.yml"), *Path("profiles").glob("*.yml")]:
+              with path.open(encoding="utf-8") as stream:
+                  yaml.safe_load(stream)
+              print(f"{path}: OK")
+          PY

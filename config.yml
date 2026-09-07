@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 drdecibel
+name: 'Daikin Local Heat Pump'
+packageKey: 'io.github.drdecibel.smartthings.daikin.local'
+description: 'Local SmartThings Edge control for Daikin heat pumps with BRP069B4x Wi-Fi adapters'
+vendorSupportInformation: 'https://github.com/drdecibel/smartthings-daikin-local-edge'
+permissions:
+  lan: {}
+  discovery: {}
