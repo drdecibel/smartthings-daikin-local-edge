@@ -17,13 +17,25 @@ jobs:
       - name: Install Lua and YAML validator
         run: |
           sudo apt-get update
-          sudo apt-get install --yes lua5.4 python3-yaml
+          sudo apt-get install --yes python3-yaml
+          # SmartThings Edge runs Lua 5.3, so prefer it when it is available.
+          sudo apt-get install --yes lua5.3 || sudo apt-get install --yes lua5.4
+          if command -v lua5.3 > /dev/null; then
+            echo "LUA=lua5.3" >> "$GITHUB_ENV"
+            echo "LUAC=luac5.3" >> "$GITHUB_ENV"
+          else
+            echo "LUA=lua5.4" >> "$GITHUB_ENV"
+            echo "LUAC=luac5.4" >> "$GITHUB_ENV"
+          fi
 
       - name: Check Lua syntax
-        run: find src test -name '*.lua' -print0 | xargs -0 -n1 luac -p
+        run: find src test -name '*.lua' -print0 | xargs -0 -n1 "$LUAC" -p
 
       - name: Run core tests
-        run: lua test/test_core.lua
+        run: "$LUA" test/test_core.lua
+
+      - name: Run driver tests
+        run: "$LUA" test/test_driver.lua
 
       - name: Check YAML files
         run: |
@@ -31,8 +43,14 @@ jobs:
           from pathlib import Path
           import yaml
 
-          for path in [Path("config.yml"), *Path("profiles").glob("*.yml")]:
+          paths = [Path("config.yml")]
+          paths += sorted(Path("profiles").glob("*.yml"))
+          paths += sorted(Path(".github").rglob("*.yml"))
+          for path in paths:
               with path.open(encoding="utf-8") as stream:
                   yaml.safe_load(stream)
               print(f"{path}: OK")
           PY
+
+      - name: Privacy scan
+        run: sh tools/privacy-scan.sh

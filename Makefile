@@ -1,10 +1,27 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 drdecibel
 
-.PHONY: test package create-channel enroll-channel assign-driver install logcat
+LUA ?= lua5.3
+LUAC ?= luac5.3
+
+.PHONY: check syntax test privacy package build-only create-channel enroll-channel assign-driver install logcat
+
+# Everything that can be verified without a hub or an adapter.
+check: syntax test privacy
+
+syntax:
+	find src test -name '*.lua' -print0 | xargs -0 -n1 $(LUAC) -p
 
 test:
-	lua test/test_core.lua
+	$(LUA) test/test_core.lua
+	$(LUA) test/test_driver.lua
+
+privacy:
+	sh tools/privacy-scan.sh
+
+# Build the package without uploading it, into a directory outside the repo.
+build-only:
+	smartthings edge:drivers:package . --build-only ../daikin-local-edge.zip
 
 package:
 	smartthings edge:drivers:package .
