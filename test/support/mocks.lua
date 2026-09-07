@@ -21,47 +21,99 @@ for _, level in ipairs({ "trace", "debug", "info", "warn", "error" }) do
 end
 
 --------------------------------------------------------------------------
--- ltn12
+-- TCP transport
 --------------------------------------------------------------------------
 
-local ltn12 = {
-  sink = {
-    table = function(destination)
-      return function(chunk)
-        if chunk then destination[#destination + 1] = chunk end
-        return 1
-      end
-    end,
-  },
-}
-
---------------------------------------------------------------------------
--- HTTP transport
---------------------------------------------------------------------------
-
--- Queued replies, keyed by request path. Each entry is a list of
--- { status = , body = } consumed in order; the last one repeats.
+-- Queued replies keyed by request path. Each entry is a list of
+-- { status = , body = } (or { raw = }) consumed in order; a single entry
+-- repeats. Set mocks.connect_failure to make connect() fail.
 mocks.http_replies = {}
-mocks.http_requests = {}
+mocks.http_requests = {}   -- reconstructed URLs, for readable assertions
+mocks.tcp_requests = {}    -- the exact bytes the driver sent
+mocks.tcp_connections = {}
+mocks.connect_failure = nil
 
-local function reply_for(url)
-  local path = url:match("^http://[^/]+([^?]*)") or url
+local function build_raw(reply)
+  if reply.raw then return reply.raw end
+  local body = reply.body or ""
+  return table.concat({
+    "HTTP/1.0 " .. tostring(reply.status) .. " " .. (reply.reason or "OK"),
+    "Content-Length: " .. tostring(#body),
+    "Content-Type: text/plain",
+    "",
+    body,
+  }, "\r\n")
+end
+
+local function reply_for(path)
   local queue = mocks.http_replies[path]
   if not queue or #queue == 0 then return { status = 404, body = "" } end
   if #queue == 1 then return queue[1] end
   return table.remove(queue, 1)
 end
 
-local http = {}
-function http.request(spec)
-  mocks.http_requests[#mocks.http_requests + 1] = spec.url
-  local reply = reply_for(spec.url)
-  if reply.body then spec.sink(reply.body) end
-  return 1, reply.status
+local function make_tcp()
+  local sock = { buffer = "", position = 1, authority = nil }
+
+  function sock:settimeout() return 1 end
+
+  function sock:connect(name, port)
+    self.authority = tostring(name) .. ":" .. tostring(port)
+    mocks.tcp_connections[#mocks.tcp_connections + 1] = { name = name, port = port }
+    if mocks.connect_failure then return nil, mocks.connect_failure end
+    return 1
+  end
+
+  function sock:send(data)
+    mocks.tcp_requests[#mocks.tcp_requests + 1] = data
+    local target = data:match("^GET%s+(%S+)") or ""
+    local path = target:match("^([^?]*)") or target
+    local authority = self.authority or ""
+    -- Drop the default port so assertions read like ordinary URLs.
+    authority = authority:gsub(":80$", "")
+    mocks.http_requests[#mocks.http_requests + 1] = "http://" .. authority .. target
+    self.buffer = build_raw(reply_for(path))
+    self.position = 1
+    return #data
+  end
+
+  function sock:receive(pattern)
+    if pattern == "*l" or pattern == "l" then
+      if self.position > #self.buffer then return nil, "closed" end
+      local first, last = self.buffer:find("\r\n", self.position, true)
+      if not first then
+        local rest = self.buffer:sub(self.position)
+        self.position = #self.buffer + 1
+        return rest
+      end
+      local line = self.buffer:sub(self.position, first - 1)
+      self.position = last + 1
+      return line
+    end
+
+    if pattern == "*a" or pattern == "a" then
+      local rest = self.buffer:sub(self.position)
+      self.position = #self.buffer + 1
+      return rest
+    end
+
+    if type(pattern) == "number" then
+      local chunk = self.buffer:sub(self.position, self.position + pattern - 1)
+      self.position = self.position + #chunk
+      if #chunk < pattern then return nil, "closed", chunk end
+      return chunk
+    end
+
+    return nil, "unsupported pattern"
+  end
+
+  function sock:close() return 1 end
+
+  return sock
 end
 
 --------------------------------------------------------------------------
--- Sockets
+-- UDP
 --------------------------------------------------------------------------
 
 -- Queued UDP replies, each { body, source_address }.
@@ -96,14 +148,14 @@ local function make_udp()
 end
 
 local socket = {
-  tcp = function() return { settimeout = function() return 1 end } end,
+  tcp = make_tcp,
   udp = make_udp,
   sleep = function() end,
 }
 
 local cosock = {
   socket = socket,
-  asyncify = function() return http end,
+  asyncify = function() return {} end,
 }
 
 --------------------------------------------------------------------------
@@ -207,6 +259,9 @@ function mocks.reset()
   mocks.log_lines = {}
   mocks.http_replies = {}
   mocks.http_requests = {}
+  mocks.tcp_requests = {}
+  mocks.tcp_connections = {}
+  mocks.connect_failure = nil
   mocks.udp_replies = {}
   mocks.udp_sent = {}
   mocks.udp_bind_failures = 0
@@ -215,7 +270,6 @@ end
 --- Install the stand-ins so that require() inside the driver finds them.
 function mocks.install()
   package.preload["log"] = function() return log end
-  package.preload["ltn12"] = function() return ltn12 end
   package.preload["cosock"] = function() return cosock end
   package.preload["cosock.socket"] = function() return socket end
   package.preload["st.capabilities"] = function() return capabilities end

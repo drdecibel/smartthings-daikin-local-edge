@@ -1,48 +1,27 @@
 -- SPDX-License-Identifier: GPL-3.0-or-later
 -- Copyright (C) 2026 drdecibel
 --
--- HTTP access to the Daikin legacy local API. Every endpoint is a plain GET
--- that answers with comma separated key=value pairs and a ret field.
+-- Access to the Daikin legacy local API. Every endpoint is a plain GET that
+-- answers with comma separated key=value pairs and a ret field.
 
-local cosock = require("cosock")
 local socket = require("cosock.socket")
-local http = cosock.asyncify("socket.http")
-local ltn12 = require("ltn12")
 local log = require("log")
 local C = require("constants")
 local codec = require("codec")
+local http = require("http")
 
 local api = {}
 
-local function create_socket()
-  local sock = socket.tcp()
-  sock:settimeout(C.REQUEST_TIMEOUT)
-  return sock
-end
-
 -- Performs one request. Returns the parsed body, or nil plus a short reason.
 local function request(host, path, params)
-  local url = string.format("http://%s%s", host, path)
-  local query = codec.query(params)
-  if query ~= "" then url = url .. "?" .. query end
+  local status, body = http.get(host, path, params)
+  if not status then return nil, "transport: " .. tostring(body) end
+  if status ~= 200 then return nil, "http " .. tostring(status) end
 
-  local body = {}
-  local _, status = http.request({
-    url = url,
-    method = "GET",
-    headers = { Host = host, Connection = "close" },
-    sink = ltn12.sink.table(body),
-    create = create_socket,
-  })
-
-  if tonumber(status) ~= 200 then
-    return nil, "transport: " .. codec.redact(status)
-  end
-
-  local parsed = codec.parse(table.concat(body))
+  local parsed = codec.parse(body)
   if parsed.ret ~= "OK" then
-    -- ret=PARAM NG means the adapter understood the request and refused it,
-    -- so retrying the same parameters cannot help.
+    -- The adapter understood the request and refused it, so retrying the same
+    -- parameters cannot help.
     return nil, "adapter: " .. tostring(parsed.ret or "no ret field")
   end
   return parsed

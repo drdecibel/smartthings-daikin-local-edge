@@ -85,6 +85,14 @@ rather than in this repository.
 
 ## How the driver talks to the adapter
 
+- The adapter matches the `Host` header **name** case-sensitively. It answers
+  `HTTP/1.0 403 HTTP_FORBIDDEN` to a request carrying `host:`, `HOST:` or `hOsT:`
+  and only accepts an exact `Host:`. RFC 7230 defines header field names as
+  case-insensitive, and LuaSocket lowercases every header name before sending, so
+  `socket.http` cannot talk to this adapter at all. The driver therefore writes
+  the request bytes itself over a plain socket ([`src/http.lua`](src/http.lua)).
+  If you are writing your own client and getting a blanket 403 from a BRP069, this
+  is very likely why.
 - `/aircon/set_control_info` treats all of `pow`, `mode`, `stemp`, `shum`, `f_rate`
   and `f_dir` as authoritative. Every write therefore reads the current control state
   first and sends the complete set back, so a fan change never resets the temperature

@@ -11,6 +11,15 @@ which are fixed here.
 
 ### Fixed
 
+- All requests failed with `HTTP/1.0 403 HTTP_FORBIDDEN` on real hardware. The
+  BRP069B4x web server matches the `Host` header NAME case-sensitively and only
+  accepts an exact `Host:`; lowercase `host:`, `HOST:` and `hOsT:` are all
+  rejected. RFC 7230 defines field names as case-insensitive, and LuaSocket
+  lowercases every header name before sending, so `socket.http` can never
+  satisfy this adapter. The driver now speaks HTTP directly on a cosock socket
+  (`src/http.lua`) so the request bytes are exact. Confirmed by isolating the
+  header on the maintainer BRP069B4x: identical requests differing only in the
+  capitalisation of `Host` return 200 and 403 respectively, every time.
 - `packageKey` shortened to `io.github.drdecibel.daikin.local`. The upload API
   limits it to 36 characters (`^[a-zA-Z0-9 _/\-()\[\]{}.]{1,36}$`) and rejected
   the previous 44-character key. Nothing had been published under the old key.

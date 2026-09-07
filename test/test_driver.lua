@@ -10,6 +10,7 @@ local mocks = require("support.mocks")
 mocks.install()
 
 local C = require("constants")
+local http = require("http")
 local api = require("api")
 local commands = require("commands")
 local discovery = require("discovery")
@@ -71,6 +72,48 @@ local function find_event(device, attribute)
 end
 
 --------------------------------------------------------------------------
+-- HTTP wire format
+--
+-- The BRP069B4x matches the Host header name case-sensitively and answers
+-- 403 to anything but an exact "Host:". These checks pin the bytes down.
+--------------------------------------------------------------------------
+
+check("request line and headers",
+  http.build_request(HOST, "/aircon/get_control_info"),
+  "GET /aircon/get_control_info HTTP/1.1\r\nHost: 192.0.2.10\r\nConnection: close\r\n\r\n")
+
+local request_bytes = http.build_request(HOST, "/aircon/get_control_info")
+check_truthy("Host is capitalised", request_bytes:find("\r\nHost: ", 1, true))
+check("no lowercase host header", request_bytes:find("\r\nhost: ", 1, true), nil)
+check("no uppercase host header", request_bytes:find("\r\nHOST: ", 1, true), nil)
+-- LuaSocket adds these and lowercases every name, which is why socket.http
+-- cannot be used against this adapter.
+check("no user-agent header", request_bytes:lower():find("user%-agent"), nil)
+check("no te header", request_bytes:lower():find("\r\nte:"), nil)
+
+check("query string is appended in order",
+  http.build_request(HOST, "/aircon/set_control_info", {
+    { name = "pow", value = "1" },
+    { name = "stemp", value = "M" },
+  }),
+  "GET /aircon/set_control_info?pow=1&stemp=M HTTP/1.1\r\nHost: 192.0.2.10\r\nConnection: close\r\n\r\n")
+
+check("host carries the port when one is configured",
+  (http.build_request("192.0.2.10:8080", "/x")):match("Host: ([^\r]+)"), "192.0.2.10:8080")
+
+local name, port = http.split_host(HOST)
+check("default port", port, 80)
+check("default host name", name, HOST)
+name, port = http.split_host("heatpump.lan:8080")
+check("explicit port", port, 8080)
+check("explicit host name", name, "heatpump.lan")
+
+check("status parsed from HTTP/1.0", http.parse_status("HTTP/1.0 200 OK"), 200)
+check("forbidden status parsed", http.parse_status("HTTP/1.1 403 HTTP_FORBIDDEN"), 403)
+check("garbage status", http.parse_status("not a status line"), nil)
+check("missing status", http.parse_status(nil), nil)
+
+--------------------------------------------------------------------------
 -- api: URL building, ret validation, retries
 --------------------------------------------------------------------------
 
@@ -109,6 +152,40 @@ local missing, missing_reason = api.control_info(nil)
 check("missing host is refused", missing, nil)
 check("missing host reason", missing_reason, "no adapter address configured")
 check("no request was attempted", #mocks.http_requests, 0)
+
+-- A 403 is what the adapter returns when the request is malformed for it.
+mocks.reset()
+mocks.http_replies["/aircon/get_control_info"] = {
+  { status = 403, reason = "HTTP_FORBIDDEN", body = "" },
+}
+local forbidden, forbidden_reason = api.control_info(HOST)
+check("403 is reported", forbidden, nil)
+check("403 reason", forbidden_reason, "http 403")
+check("403 is retried", #mocks.http_requests, C.REQUEST_ATTEMPTS)
+
+mocks.reset()
+mocks.connect_failure = "connection refused"
+local unreachable, unreachable_reason = api.control_info(HOST)
+check("unreachable adapter is reported", unreachable, nil)
+check("connect failure reason", unreachable_reason, "transport: connect: connection refused")
+check("connect failure is retried", #mocks.tcp_connections, C.REQUEST_ATTEMPTS)
+
+-- Responses without Content-Length are read until the adapter closes.
+mocks.reset()
+mocks.http_replies["/aircon/get_sensor_info"] = {
+  { raw = "HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\n\r\n" .. SENSOR_BODY },
+}
+local streamed = api.sensor_info(HOST)
+check("body read to end of stream", streamed and streamed.htemp, "24.0")
+
+-- Local addresses must never reach the log.
+mocks.reset()
+mocks.connect_failure = "no route to 198.51.100.7"
+api.control_info(HOST)
+check("addresses are redacted in the log",
+  table.concat(mocks.log_lines, "\n"):find("198.51.100.7", 1, true), nil)
+check_truthy("redaction placeholder is used",
+  table.concat(mocks.log_lines, "\n"):find("<address>", 1, true))
 
 --------------------------------------------------------------------------
 -- refresh: events, online state, failure debounce
