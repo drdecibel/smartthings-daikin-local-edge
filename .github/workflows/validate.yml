@@ -55,5 +55,8 @@ jobs:
               print(f"{path}: OK")
           PY
 
+      - name: Check driver manifest
+        run: python3 tools/check-manifest.py
+
       - name: Privacy scan
         run: sh tools/privacy-scan.sh

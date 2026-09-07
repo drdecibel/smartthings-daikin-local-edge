@@ -4,10 +4,10 @@
 LUA ?= lua5.3
 LUAC ?= luac5.3
 
-.PHONY: check syntax test privacy package build-only create-channel enroll-channel assign-driver install logcat
+.PHONY: check syntax test manifest privacy package build-only create-channel enroll-channel assign-driver install logcat
 
 # Everything that can be verified without a hub or an adapter.
-check: syntax test privacy
+check: syntax test manifest privacy
 
 syntax:
 	find src test -name '*.lua' -print0 | xargs -0 -n1 $(LUAC) -p
@@ -15,6 +15,9 @@ syntax:
 test:
 	$(LUA) test/test_core.lua
 	$(LUA) test/test_driver.lua
+
+manifest:
+	python3 tools/check-manifest.py
 
 privacy:
 	sh tools/privacy-scan.sh

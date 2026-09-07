@@ -11,6 +11,9 @@ which are fixed here.
 
 ### Fixed
 
+- `packageKey` shortened to `io.github.drdecibel.daikin.local`. The upload API
+  limits it to 36 characters (`^[a-zA-Z0-9 _/\-()\[\]{}.]{1,36}$`) and rejected
+  the previous 44-character key. Nothing had been published under the old key.
 - Dry mode and fan-only mode now send the placeholder target temperature the
   adapter requires (`stemp=M` and `stemp=--`). Sending a number made the adapter
   refuse the whole request with `ret=PARAM NG`, so those two modes could not be
@@ -46,6 +49,9 @@ which are fixed here.
   lifecycle paths against stand-ins for the SmartThings Edge runtime.
 - `tools/privacy-scan.sh`, run in CI, which fails the build if a tracked file
   contains an address, MAC address, credential or account identifier.
+- `tools/check-manifest.py`, run in CI, which checks config.yml against the
+  constraints the upload API enforces and against the driver source. The CLI
+  build step does not check any of them.
 
 ### Changed
 
