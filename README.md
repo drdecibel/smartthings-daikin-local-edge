@@ -14,33 +14,33 @@ token or API quota.
 
 ## Project status
 
-**Beta.** The driver is complete, reviewed against the published SmartThings Edge
-and Daikin local API documentation, and covered by 213 automated checks, but it has
-not yet been exercised against a physical heat pump. Treat every command as unproven
-until the maturity note below says otherwise, and keep the original Daikin controller
-or the ONecta app available while you evaluate it.
+Every advertised function has been exercised against a physical heat pump, and each
+command was verified by reading the adapter directly before and after to confirm that
+unrelated settings were preserved. That testing covers **one** adapter and firmware,
+so treat wider compatibility as unproven and keep the Daikin controller or the ONecta
+app available while you evaluate it.
 
 | | |
 |---|---|
 | Driver version | 0.2.0 |
-| Verified by | automated tests and documentation review |
-| Verified on hardware | not yet |
-| Adapter family targeted | BRP069B4x, `adp_kind=3`, firmware family `4_2_303` |
+| Automated checks | 238, on Lua 5.3 and 5.4 |
+| Verified on hardware | BRP069B4x, `adp_kind=3`, firmware `4_2_303`, protocol `pv=3.2` |
+| Physically tested | discovery, refresh, power on/off, heat/dry/fan-only modes, heating setpoint, fan speed, swing, indoor and outdoor temperature, operating state |
+| Not yet tested | cool mode, auto mode, any other adapter or indoor unit |
 
 ## Installation
 
 ### Enrol from a browser (recommended)
 
-The public beta channel invitation is not published yet. It will be linked here and
-in the [releases](https://github.com/drdecibel/smartthings-daikin-local-edge/releases)
-as soon as the channel exists. The steps will then be:
-
-1. Open the Daikin Local Edge invitation link.
+1. Open the **[Daikin Local Edge invitation](https://bestow-regional.api.smartthings.com/invite/6VjdXk9DkBjN)**.
 2. Sign in with the Samsung account that owns your hub.
 3. Enrol the hub you want to run the driver on.
 4. Install **Daikin Local Heat Pump** from **Available Drivers**.
 5. Open the SmartThings app.
 6. Choose **Add device → Scan nearby**.
+
+The heat pump should appear within a few seconds. If it does not, see
+[Troubleshooting](#troubleshooting).
 
 ### Install with the SmartThings CLI (advanced)
 
@@ -56,6 +56,11 @@ smartthings edge:drivers:install
 
 Then choose **Add device → Scan nearby** in the SmartThings app. The CLI prompts for
 the channel, driver and hub where it needs them.
+
+> **If you maintain your own channel:** deleting a channel invitation also unenrols
+> every hub that joined through it. The hub keeps the installed driver but stops
+> receiving updates until you run `smartthings edge:channels:enroll` again. This is
+> not documented by SmartThings; it was observed while setting this channel up.
 
 ## Requirements
 
@@ -133,7 +138,9 @@ reliable option; mDNS names ending in `.local` are not resolved.
 
 ## Known limitations
 
-- Not yet verified on physical hardware. See **Project status**.
+- Verified on a single adapter and indoor unit. See **Project status**.
+- Cool mode and auto mode are implemented and unit tested but have not been run on
+  physical hardware, because the test unit was heating at the time.
 - Only the BRP069B4x family is targeted. Other BRP069 adapters use the same legacy
   API and may work, but no wider compatibility is claimed.
 - Adapter firmware **2.8.0 and newer replaces this API** with a different JSON
@@ -155,11 +162,13 @@ reliable option; mDNS names ending in `.local` are not resolved.
 make check
 ```
 
-runs the Lua syntax check, both test suites and the privacy scan. Individually:
+runs the Lua syntax check, both test suites, the manifest check and the privacy scan.
+Individually:
 
 ```sh
 lua5.3 test/test_core.lua
 lua5.3 test/test_driver.lua
+python3 tools/check-manifest.py
 sh tools/privacy-scan.sh
 ```
 
