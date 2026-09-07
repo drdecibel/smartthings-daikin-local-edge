@@ -29,13 +29,16 @@ jobs:
           fi
 
       - name: Check Lua syntax
-        run: find src test -name '*.lua' -print0 | xargs -0 -n1 "$LUAC" -p
+        run: |
+          find src test -name '*.lua' -print0 | xargs -0 -n1 "$LUAC" -p
 
       - name: Run core tests
-        run: "$LUA" test/test_core.lua
+        run: |
+          "$LUA" test/test_core.lua
 
       - name: Run driver tests
-        run: "$LUA" test/test_driver.lua
+        run: |
+          "$LUA" test/test_driver.lua
 
       - name: Check YAML files
         run: |
